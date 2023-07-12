@@ -20,6 +20,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Prepare
+      run: |
+        sh ./sql/create-db.sh
+        cargo install sqlx-cli 
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose
