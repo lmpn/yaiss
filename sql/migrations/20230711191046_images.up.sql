@@ -1,0 +1,7 @@
+-- Add up migration script here
+CREATE TABLE IF NOT EXISTS images (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    path VARCHAR(4096) NOT NULL,
+    updated_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (path)
+);

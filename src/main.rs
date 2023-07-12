@@ -4,6 +4,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event, Level};
 
 use crate::server::server_handler::ServerHandler;
+mod images;
 mod server;
 
 #[tokio::main]

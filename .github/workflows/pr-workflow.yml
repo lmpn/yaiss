@@ -12,15 +12,30 @@ env:
 jobs:
   clippy_check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:sql/images.db
     steps:
       - uses: actions/checkout@v3
+      - name: Prepare
+        run: |
+          cargo install sqlx-cli
+          sh ./sql/create-db.sh
+          cargo sqlx prepare --database-url $DATABASE_URL
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features
+        run: |
+          cargo clippy --all-targets --all-features
   
   build:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:sql/images.db
     steps:
     - uses: actions/checkout@v3
+    - name: Prepare
+      run: |
+        cargo install sqlx-cli
+        sh ./sql/create-db.sh
+        cargo sqlx prepare --database-url $DATABASE_URL
     - name: Build
       run: cargo build --verbose
     - name: Run tests
