@@ -32,9 +32,10 @@ impl ImagesDataStorage for ImageSqliteDS {
             .map(|record| {
                 let updated_on = record
                     .updated_on
+                    .unwrap()
                     .parse::<DateTime<Utc>>()
                     .unwrap_or(Utc::now());
-                Image::new(record.id, record.path, updated_on)
+                Image::new(record.id.unwrap(), record.path.unwrap(), updated_on)
             })
             .collect();
         Ok(images)
@@ -117,7 +118,7 @@ mod tests {
 
     #[fixture]
     async fn repository() -> ImageSqliteDS {
-        let pool = SqlitePool::connect(&std::env::var("TEST_DB_URL").unwrap())
+        let pool = SqlitePool::connect(&std::env::var("DATABASE_URL").unwrap())
             .await
             .unwrap();
         let storage = ImageSqliteDS::new(pool);
