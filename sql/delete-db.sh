@@ -1,0 +1,1 @@
+sqlx database drop -y
