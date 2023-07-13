@@ -1,1 +1,1 @@
-sqlx database drop -y
+sqlx database drop -y --database-url "sqlite:sql/images.db"
