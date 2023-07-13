@@ -1,4 +1,5 @@
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
+use std::time::Duration;
 
 use axum::{
     http::{
@@ -10,8 +11,12 @@ use axum::{
 };
 use axum_server::Handle;
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{event, Level};
+
+use crate::configuration::Configuration;
+
 pub struct ServerHandler {
-    handle: Handle,
+    handle: Option<Handle>,
     address: SocketAddr,
     router: Router<()>,
 }
@@ -23,30 +28,57 @@ impl ServerHandler {
             .allow_methods([Method::GET])
             .allow_headers([AUTHORIZATION, ORIGIN, ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN]);
         let router = Router::<()>::new().route("/", get(get_home)).layer(cors);
-        let address = SocketAddr::from(([0, 0, 0, 0], 3000));
+        let address = ([0, 0, 0, 0], 3000);
+        let sock_address = SocketAddr::from(address);
         Self {
-            handle: Handle::new(),
-            address,
+            handle: Some(Handle::new()),
+            address: sock_address,
             router,
         }
     }
 
     pub fn serve(&mut self) {
+        let handle = match &self.handle {
+            Some(handle) => handle.clone(),
+            None => {
+                let handle = Handle::new();
+                self.handle = Some(handle.clone());
+                handle
+            }
+        };
         let server = axum_server::bind(self.address)
-            .handle(self.handle.clone())
+            .handle(handle)
             .serve(self.router.clone().into_make_service());
         tokio::spawn(async {
+            event!(Level::INFO, "Starting server");
             server.await.unwrap();
         });
     }
 
-    pub async fn stop(&self) {
-        self.handle.graceful_shutdown(Some(Duration::from_secs(15)));
-        let mut conn_count = self.handle.connection_count();
+    pub async fn reload(&mut self, configuration: Configuration) {
+        let sock_address = SocketAddr::from(configuration.address());
+        if self.address == sock_address {
+            return;
+        }
+        self.stop().await;
+
+        self.address = sock_address;
+
+        self.serve()
+    }
+
+    pub async fn stop(&mut self) {
+        if let None = self.handle {
+            return;
+        }
+        let handle = self.handle.take().unwrap();
+        handle.graceful_shutdown(Some(Duration::from_secs(3)));
+        let mut conn_count = handle.connection_count();
         while conn_count > 0 {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            conn_count = self.handle.connection_count();
+            conn_count = handle.connection_count();
         }
+        event!(Level::INFO, "Stopping server");
     }
 }
 

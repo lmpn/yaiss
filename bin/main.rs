@@ -1,0 +1,38 @@
+use std::error::Error;
+
+use tokio::signal::unix::{signal, SignalKind};
+use tracing::{event, Level};
+use yaiss::{configuration::Configuration, server::server_handler::ServerHandler};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
+    let mut configuration = Configuration::new();
+    let mut server_handler = ServerHandler::new();
+    server_handler.serve();
+
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sigint = signal(SignalKind::interrupt())?;
+    loop {
+        tokio::select! {
+            _ = sigterm.recv() => {
+                event!(Level::INFO, "SIGTERM Shuting down");
+                break;
+            }
+            _ = sigint.recv() => {
+                event!(Level::INFO,"SIGINT Shuting down");
+                break;
+            },
+            Some(()) = configuration.has_change() => {
+                event!(Level::INFO,"Configuration changed");
+                let configuration = Configuration::new();
+                server_handler.reload(configuration).await
+            }
+        };
+    }
+
+    server_handler.stop().await;
+    Ok(())
+}
