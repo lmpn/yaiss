@@ -1,12 +1,12 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use axum::routing::{get, post};
 use axum::{
     http::{
         header::{ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, ORIGIN},
         Method,
     },
-    routing::get,
     Router,
 };
 use axum_server::Handle;
@@ -14,6 +14,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, Level};
 
 use crate::configuration::Configuration;
+use crate::images::web::upload_images_handler;
+use crate::state::State;
 
 pub struct ServerHandler {
     handle: Option<Handle>,
@@ -22,14 +24,9 @@ pub struct ServerHandler {
 }
 
 impl ServerHandler {
-    pub fn new() -> Self {
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods([Method::GET])
-            .allow_headers([AUTHORIZATION, ORIGIN, ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN]);
-        let router = Router::<()>::new().route("/", get(get_home)).layer(cors);
-        let address = ([0, 0, 0, 0], 3000);
-        let sock_address = SocketAddr::from(address);
+    pub fn new(state: State, configuration: &Configuration) -> Self {
+        let router = Self::create_router(state);
+        let sock_address = SocketAddr::from(configuration.address());
         Self {
             handle: Some(Handle::new()),
             address: sock_address,
@@ -55,7 +52,7 @@ impl ServerHandler {
         });
     }
 
-    pub async fn reload(&mut self, configuration: Configuration) {
+    pub async fn reload(&mut self, state: State, configuration: Configuration) {
         let sock_address = SocketAddr::from(configuration.address());
         if self.address == sock_address {
             return;
@@ -63,12 +60,13 @@ impl ServerHandler {
         self.stop().await;
 
         self.address = sock_address;
+        self.router = Self::create_router(state);
 
         self.serve()
     }
 
     pub async fn stop(&mut self) {
-        if let None = self.handle {
+        if self.handle.is_none() {
             return;
         }
         let handle = self.handle.take().unwrap();
@@ -80,21 +78,37 @@ impl ServerHandler {
         }
         event!(Level::INFO, "Stopping server");
     }
+
+    fn create_router(state: State) -> Router {
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([Method::GET])
+            .allow_headers([AUTHORIZATION, ORIGIN, ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN]);
+        let images_routes = Router::new().route("/", post(upload_images_handler::upload_image));
+        let images_router = Router::new().nest("/images", images_routes);
+
+        Router::new()
+            .route("/", get(hello_world))
+            .nest("/api/v1", images_router)
+            .with_state(state)
+            .layer(cors)
+    }
 }
 
-async fn get_home() -> &'static str {
-    "Hello world"
+async fn hello_world() -> &'static str {
+    "Hello world!"
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use tokio::time::sleep;
 
-    use super::*;
-
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn start_and_stop() {
-        let mut sh = ServerHandler::new();
+        let configuration = Configuration::new();
+        let state = State::new(&configuration);
+        let mut sh = ServerHandler::new(state, &configuration);
         sh.serve();
         sleep(Duration::from_millis(500)).await;
         let response = reqwest::get("http://0.0.0.0:3000/")
@@ -103,7 +117,7 @@ mod tests {
             .text()
             .await
             .expect("failed to read payload");
-        assert_eq!(response, "Hello world");
+        assert_eq!(response, "Hello world!");
         sh.stop().await;
 
         let response = reqwest::get("http://0.0.0.0:3000/")

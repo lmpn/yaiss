@@ -16,7 +16,8 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn new() -> Self {
-        let path = std::env::var("INI_CONFIGURATION").unwrap();
+        let path =
+            std::env::var("INI_CONFIGURATION").expect("env variable INI_CONFIGURATION not set");
         let (mut tx, rx) = unbounded();
 
         let mut w: Box<dyn Watcher> = Box::new(
@@ -28,21 +29,27 @@ impl Configuration {
                 },
                 Config::default(),
             )
-            .unwrap(),
+            .expect("Error creating watcher"),
         );
-        w.watch(path.as_ref(), RecursiveMode::NonRecursive).unwrap();
+        w.watch(path.as_ref(), RecursiveMode::NonRecursive)
+            .expect("Error starting watcher");
         Self {
-            configuration: Ini::load_from_file(&path).unwrap(),
+            configuration: Ini::load_from_file(&path).expect("Error loading configuration file"),
             watcher: rx,
             _w: w,
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn database_url(&self) -> &str {
         self.configuration
             .get_from(Some("DATABASE"), "url")
-            .unwrap()
+            .expect("Invalid url")
+    }
+
+    pub(crate) fn migrations_path(&self) -> &str {
+        self.configuration
+            .get_from(Some("DATABASE"), "migrations_path")
+            .expect("Invalid migrations path")
     }
 
     pub(crate) fn address(&self) -> ([u8; 4], u16) {
@@ -56,21 +63,33 @@ impl Configuration {
         let port = self
             .configuration
             .get_from(Some("SERVER"), "port")
-            .unwrap()
+            .expect("Invalid port value")
             .parse::<u16>()
-            .unwrap();
-        (address.try_into().unwrap(), port)
+            .expect("Invalid port value");
+        (address.try_into().expect("Invalid address value"), port)
     }
 
     pub async fn has_change(&mut self) -> Option<()> {
         loop {
-            match self.watcher.next().await {
-                Some(Ok(Event {
-                    kind: notify::EventKind::Modify(ModifyKind::Data(DataChange::Content)),
-                    ..
-                })) => return Some(()),
-                _ => {}
+            if let Some(Ok(Event {
+                kind: notify::EventKind::Modify(ModifyKind::Data(DataChange::Content)),
+                ..
+            })) = self.watcher.next().await
+            {
+                return Some(());
             }
         }
+    }
+
+    pub(crate) fn images_base_path(&self) -> &str {
+        self.configuration
+            .get_from(Some("IMAGE_SERVICE"), "base_path")
+            .expect("Invalid base path")
+    }
+}
+
+impl Default for Configuration {
+    fn default() -> Self {
+        Self::new()
     }
 }

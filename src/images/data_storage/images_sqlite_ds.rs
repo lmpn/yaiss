@@ -2,14 +2,16 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::SqlitePool;
 
-use super::images_data_storage::{Image, ImagesDataStorage};
+use crate::images::domain::image::Image;
 
-struct ImageSqliteDS {
+use super::images_data_storage::ImagesDataStorage;
+
+pub struct ImagesSqliteDS {
     pool: SqlitePool,
 }
 
 #[async_trait]
-impl ImagesDataStorage for ImageSqliteDS {
+impl ImagesDataStorage for ImagesSqliteDS {
     type Index = i64;
 
     async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>> {
@@ -104,9 +106,9 @@ impl ImagesDataStorage for ImageSqliteDS {
     }
 }
 
-impl ImageSqliteDS {
+impl ImagesSqliteDS {
     #[allow(dead_code)]
-    fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 }
@@ -117,11 +119,13 @@ mod tests {
     use rstest::*;
 
     #[fixture]
-    async fn repository() -> ImageSqliteDS {
-        let pool = SqlitePool::connect(&std::env::var("DATABASE_URL").unwrap())
-            .await
-            .unwrap();
-        let storage = ImageSqliteDS::new(pool);
+    async fn repository() -> ImagesSqliteDS {
+        let pool = SqlitePool::connect(
+            &std::env::var("DATABASE_URL").expect("env variable DATABASE_URL not set"),
+        )
+        .await
+        .unwrap();
+        let storage = ImagesSqliteDS::new(pool);
         let image1 = image1();
         let image2 = image2();
         let image3 = image3();
@@ -162,7 +166,7 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_query_images(
-        repository: impl std::future::Future<Output = ImageSqliteDS>,
+        repository: impl std::future::Future<Output = ImagesSqliteDS>,
         #[values(image1())] image1: Image,
         #[values(image2())] image2: Image,
         #[values(image3())] image3: Image,
@@ -190,11 +194,11 @@ mod tests {
     #[case(image3())]
     #[tokio::test]
     async fn test_query_image(
-        repository: impl std::future::Future<Output = ImageSqliteDS>,
+        repository: impl std::future::Future<Output = ImagesSqliteDS>,
         #[case] expected_image: Image,
     ) {
         let repository = repository.await;
-        let index: <ImageSqliteDS as ImagesDataStorage>::Index = expected_image.id();
+        let index: <ImagesSqliteDS as ImagesDataStorage>::Index = expected_image.id();
         // Query image
         let image = repository.query_image(index).await.unwrap();
         assert_eq!(expected_image, image);
@@ -205,7 +209,7 @@ mod tests {
         expected = "called `Result::unwrap()` on an `Err` value: no rows returned by a query that expected to return at least one row"
     )]
     #[tokio::test]
-    async fn test_delete_image(repository: impl std::future::Future<Output = ImageSqliteDS>) {
+    async fn test_delete_image(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
         let repository = repository.await;
         // Insert some test images
         let image = Image::new(5, "path/to/image5".to_string(), Utc::now());
@@ -220,7 +224,7 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_insert_image(repository: impl std::future::Future<Output = ImageSqliteDS>) {
+    async fn test_insert_image(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
         let repository = repository.await;
         // Insert image
         let image = Image::new(

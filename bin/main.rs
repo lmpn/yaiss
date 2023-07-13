@@ -2,7 +2,7 @@ use std::error::Error;
 
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event, Level};
-use yaiss::{configuration::Configuration, server::server_handler::ServerHandler};
+use yaiss::{configuration::Configuration, server::server_handler::ServerHandler, state::State};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -10,7 +10,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_max_level(Level::DEBUG)
         .init();
     let mut configuration = Configuration::new();
-    let mut server_handler = ServerHandler::new();
+    let state = State::new(&configuration);
+    let mut server_handler = ServerHandler::new(state, &configuration);
     server_handler.serve();
 
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -28,7 +29,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Some(()) = configuration.has_change() => {
                 event!(Level::INFO,"Configuration changed");
                 let configuration = Configuration::new();
-                server_handler.reload(configuration).await
+                let state = State::new(&configuration);
+                server_handler.reload(state, configuration).await
             }
         };
     }
