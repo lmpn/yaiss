@@ -2,7 +2,7 @@ use std::error::Error;
 
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event, Level};
-use yaiss::{configuration::Configuration, server::server_handler::ServerHandler, state::State};
+use yaiss::{configuration::Configuration, server::server::Server, state::State};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .init();
     let mut configuration = Configuration::new();
     let state = State::new(&configuration);
-    let mut server_handler = ServerHandler::new(state, &configuration);
+    let mut server_handler = Server::new(state, &configuration);
     server_handler.serve();
 
     let mut sigterm = signal(SignalKind::terminate())?;

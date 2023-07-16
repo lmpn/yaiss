@@ -17,13 +17,13 @@ use crate::configuration::Configuration;
 use crate::images::web::upload_images_handler;
 use crate::state::State;
 
-pub struct ServerHandler {
+pub struct Server {
     handle: Option<Handle>,
     address: SocketAddr,
     router: Router<()>,
 }
 
-impl ServerHandler {
+impl Server {
     pub fn new(state: State, configuration: &Configuration) -> Self {
         let router = Self::create_router(state);
         let sock_address = SocketAddr::from(configuration.address());
@@ -108,7 +108,7 @@ mod tests {
     async fn start_and_stop() {
         let configuration = Configuration::new();
         let state = State::new(&configuration);
-        let mut sh = ServerHandler::new(state, &configuration);
+        let mut sh = Server::new(state, &configuration);
         sh.serve();
         sleep(Duration::from_millis(500)).await;
         let response = reqwest::get("http://0.0.0.0:3000/")
