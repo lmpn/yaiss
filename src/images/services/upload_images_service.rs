@@ -53,7 +53,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use std::{env, io::Cursor};
 
     use async_trait::async_trait;
     use mockall::mock;
@@ -111,9 +111,18 @@ mod tests {
         let mut mock = MockDS::new();
         mock.expect_insert_image()
             .returning(|_i| anyhow::Result::Ok(()));
-        let uis = UploadImagesService::new(mock, "data".to_string());
+        let path = env::current_dir().unwrap();
+        let uis = UploadImagesService::new(mock, path.display().to_string());
         let buffer = gen_img();
-        let v = uis.upload_image(buffer).await;
+        let v = uis.upload_image(buffer.clone()).await;
         assert!(v.is_ok());
+        let paths = std::fs::read_dir("./").unwrap();
+        for path in paths {
+            let p = path.unwrap().path();
+            if p.ends_with("qoi") {
+                let ri = image::io::Reader::open(p).unwrap().decode().unwrap();
+                assert_eq!(ri.as_bytes(), buffer)
+            }
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{
     http::{
         header::{ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, ORIGIN},
@@ -14,7 +14,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, Level};
 
 use crate::configuration::Configuration;
-use crate::images::web::upload_images_handler;
+use crate::images;
 use crate::state::State;
 
 pub struct Server {
@@ -84,12 +84,9 @@ impl Server {
             .allow_origin(Any)
             .allow_methods([Method::GET])
             .allow_headers([AUTHORIZATION, ORIGIN, ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN]);
-        let images_routes = Router::new().route("/", post(upload_images_handler::upload_image));
-        let images_router = Router::new().nest("/images", images_routes);
-
         Router::new()
             .route("/", get(hello_world))
-            .nest("/api/v1", images_router)
+            .merge(images::web::router())
             .with_state(state)
             .layer(cors)
     }

@@ -17,3 +17,4 @@ sql/*.db*
 sqlx-data.json
 data
 .DS_Store
+*.qoi
