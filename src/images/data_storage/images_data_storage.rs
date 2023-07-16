@@ -1,5 +1,6 @@
 use crate::images::domain::image::Image;
 use async_trait::async_trait;
+// #[automock(type Index = i64;)]
 #[async_trait]
 pub trait ImagesDataStorage {
     type Index;
