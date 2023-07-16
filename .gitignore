@@ -15,6 +15,5 @@ Cargo.lock
 
 sql/*.db*
 sqlx-data.json
-*.ini
 data
 .DS_Store
