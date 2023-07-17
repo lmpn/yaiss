@@ -37,7 +37,8 @@ jobs:
         cargo install sqlx-cli
         sh ./sql/create-db.sh
         cargo sqlx prepare --database-url $DATABASE_URL
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    - uses: docker://lpenz/ghaction-rust-coverage:0.5
+    - uses: coverallsapp/github-action@v1.1.2
+      with:
+        github-token: ${{ secrets.COVERALLS_TOKEN }}
+        path-to-lcov: ./lcov.info
