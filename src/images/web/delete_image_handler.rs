@@ -4,7 +4,6 @@ use axum::{
     Json,
 };
 use serde_json::json;
-use tracing::info;
 
 use crate::{
     error::YaissError,
@@ -19,7 +18,6 @@ pub async fn delete_image_handler(
     axum::extract::State(state): axum::extract::State<State>,
     identifier: axum::extract::Path<i64>,
 ) -> Result<Response<Body>, YaissError> {
-    info!("{:?}", identifier.0);
     let storage = ImagesSqliteDS::new(state.pool());
     let service = DeleteImageService::new(storage);
     let builder = Response::builder();

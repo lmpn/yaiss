@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display};
 
 use crate::images::data_storage::images_data_storage::{self, ImagesDataStorage};
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BatchDeleteImageServiceError {
     TooManyImagesToDelete(u64),
     InternalError,
@@ -72,8 +72,11 @@ mod tests {
     use mockall::mock;
 
     use crate::images::{
-        data_storage::images_data_storage::ImagesDataStorage, domain::image::Image,
-        services::batch_delete_image_service::BatchDeleteImageService,
+        data_storage::images_data_storage::ImagesDataStorage,
+        domain::image::Image,
+        services::batch_delete_image_service::{
+            BatchDeleteImageService, BatchDeleteImageServiceError,
+        },
     };
 
     mock! {
@@ -114,6 +117,7 @@ mod tests {
         let suu = BatchDeleteImageService::new(mock);
         let result = suu.batch_delete_image(vec![1, 2]).await;
         assert!(result.is_err());
+        assert_eq!(result, Err(BatchDeleteImageServiceError::InternalError));
     }
 
     #[tokio::test]
@@ -123,5 +127,9 @@ mod tests {
         let suu = BatchDeleteImageService::new(mock);
         let result = suu.batch_delete_image(indexes).await;
         assert!(result.is_err());
+        assert_eq!(
+            result,
+            Err(BatchDeleteImageServiceError::TooManyImagesToDelete(50))
+        );
     }
 }
