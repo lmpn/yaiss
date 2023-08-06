@@ -8,7 +8,7 @@ use crate::{
     error::YaissError,
     images::{
         data_storage::images_sqlite_ds::ImagesSqliteDS,
-        services::batch_delete_image_service::DeleteImagesService,
+        services::batch_delete_image_service::BatchDeleteImageService,
     },
     state::State,
 };
@@ -19,7 +19,7 @@ pub async fn batch_delete_image(
 ) -> Result<Response<Body>, YaissError> {
     info!("{:?}", identifiers.0);
     let storage = ImagesSqliteDS::new(state.pool());
-    let service = DeleteImagesService::new(storage);
+    let service = BatchDeleteImageService::new(storage);
     let builder = Response::builder();
     let builder = match service.batch_delete_image(identifiers.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
