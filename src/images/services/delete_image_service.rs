@@ -95,4 +95,16 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result, Err(DeleteImageServiceError::ImageNotFound));
     }
+
+    #[tokio::test]
+    async fn test_delete_image_fs_error() {
+        let path = env::current_dir().unwrap();
+        let mut mock = MockDS::new();
+        mock.expect_delete_image()
+            .returning(move |_i| anyhow::Result::Ok(path.join("1").to_str().unwrap().to_string()));
+        let suu = DeleteImageService::new(mock);
+        let result = suu.delete_image(1).await;
+        assert!(result.is_err());
+        assert_eq!(result, Err(DeleteImageServiceError::InternalError));
+    }
 }

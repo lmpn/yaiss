@@ -110,6 +110,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_batch_delete_image_fs_error() {
+        let path = env::current_dir().unwrap();
+        let mut mock = MockDS::new();
+        mock.expect_batch_delete_image().returning(move |_i| {
+            anyhow::Result::Ok(vec![
+                path.join("1").to_str().unwrap().to_string(),
+                path.join("2").to_str().unwrap().to_string(),
+            ])
+        });
+        let suu = BatchDeleteImageService::new(mock);
+        let result = suu.batch_delete_image(vec![1, 2]).await;
+        assert!(result.is_err());
+        assert_eq!(result, Err(BatchDeleteImageServiceError::InternalError));
+    }
+
+    #[tokio::test]
     async fn test_batch_delete_image_ds_error() {
         let mut mock = MockDS::new();
         mock.expect_batch_delete_image()
