@@ -1,8 +1,23 @@
-use anyhow::Ok;
-use tracing::info;
+use std::{error::Error, fmt::Display};
 
 use crate::images::data_storage::images_data_storage::{self, ImagesDataStorage};
+#[derive(Debug)]
+pub enum BatchDeleteImageServiceError {
+    TooManyImagesToDelete(u64),
+    InternalError,
+}
 
+impl Display for BatchDeleteImageServiceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BatchDeleteImageServiceError::TooManyImagesToDelete(max) => {
+                f.write_str(format!("Too many images to delete. Max: {}", max).as_str())
+            }
+            BatchDeleteImageServiceError::InternalError => f.write_str("Internal error"),
+        }
+    }
+}
+impl Error for BatchDeleteImageServiceError {}
 pub struct BatchDeleteImageService<Storage>
 where
     Storage: ImagesDataStorage + Send + Sync,
@@ -21,17 +36,29 @@ where
     pub async fn batch_delete_image(
         &self,
         indexes: Vec<<Storage as images_data_storage::ImagesDataStorage>::Index>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), BatchDeleteImageServiceError> {
         let len = indexes.len();
         let max = 50;
         if len > max {
-            anyhow::bail!("Cannot delete more than 50 images");
+            Err(BatchDeleteImageServiceError::TooManyImagesToDelete(
+                max as u64,
+            ))
         } else {
-            let paths = self.storage.batch_delete_image(indexes).await?;
-            info!("{:?}", paths);
-            paths
-                .into_iter()
-                .for_each(|path| std::fs::remove_file(path).unwrap());
+            let paths = match self.storage.batch_delete_image(indexes).await {
+                Ok(paths) => paths,
+                Err(_) => return Err(BatchDeleteImageServiceError::InternalError),
+            };
+
+            let mut err: Option<BatchDeleteImageServiceError> = None;
+            for path in paths {
+                let result = std::fs::remove_file(path);
+                if result.is_err() {
+                    err = Some(BatchDeleteImageServiceError::InternalError);
+                }
+            }
+            if err.is_some() {
+                return Err(err.unwrap());
+            }
             Ok(())
         }
     }
@@ -56,7 +83,7 @@ mod tests {
             type Index=i64;
             async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>>;
             async fn query_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<Image>;
-            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<()>;
+            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<String>;
             async fn batch_delete_image(&self, index: Vec<<Self as ImagesDataStorage>::Index>) -> anyhow::Result<Vec<String>>;
             async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
         }

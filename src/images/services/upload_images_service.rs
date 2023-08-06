@@ -70,7 +70,7 @@ mod tests {
             type Index=i64;
             async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>>;
             async fn query_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<Image>;
-            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<()>;
+            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<String>;
             async fn batch_delete_image(&self, index: Vec<<Self as ImagesDataStorage>::Index>) -> anyhow::Result<Vec<String>>;
             async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
         }

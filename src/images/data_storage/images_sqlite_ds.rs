@@ -62,18 +62,19 @@ impl ImagesDataStorage for ImagesSqliteDS {
         Ok(image)
     }
 
-    async fn delete_image(&self, index: Self::Index) -> anyhow::Result<()> {
-        sqlx::query!(
-            r#"
-                DELETE FROM images WHERE id = ?1
-            "#,
-            index
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
+    async fn delete_image(&self, index: Self::Index) -> anyhow::Result<String> {
+        let record = match sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
+            .fetch_all(&self.pool)
+            .await
+        {
+            Ok(record) => record,
+            Err(_) => {
+                anyhow::bail!("record not found")
+            }
+        };
+        Ok(record.get(0).unwrap().path.clone())
     }
+
     async fn batch_delete_image(&self, indexes: Vec<Self::Index>) -> anyhow::Result<Vec<String>> {
         let query = format!(
             "DELETE FROM images WHERE id in ({}) RETURNING path",
@@ -230,10 +231,12 @@ mod tests {
         repository.insert_image(&image).await.unwrap();
 
         // Delete image
-        repository.delete_image(5).await.unwrap();
+        let path = repository.delete_image(5).await.unwrap();
+        assert_eq!(path, "path/to/image5".to_string());
 
         // Query images
-        repository.query_image(5).await.unwrap();
+        let img = repository.query_image(5).await.unwrap();
+        println!("{:?}", img);
     }
 
     #[rstest]
@@ -268,12 +271,11 @@ mod tests {
 
         // Delete image
         let paths = repository.batch_delete_image(vec![7, 8]).await.unwrap();
-        println!("{:?}", paths);
-
+        assert!(paths.contains(&"path/to/image7".to_string()));
+        assert!(paths.contains(&"path/to/image8".to_string()));
         // Query images
         let image7_error = repository.query_image(7).await;
         let image8_error = repository.query_image(8).await;
-        println!("{:?}", image7_error);
         assert!(image7_error.is_err());
         assert!(image8_error.is_err());
     }
