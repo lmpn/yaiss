@@ -74,7 +74,7 @@ impl ImagesDataStorage for ImagesSqliteDS {
 
         Ok(())
     }
-    async fn delete_images(&self, indexes: Vec<Self::Index>) -> anyhow::Result<Vec<String>> {
+    async fn batch_delete_image(&self, indexes: Vec<Self::Index>) -> anyhow::Result<Vec<String>> {
         let query = format!(
             "DELETE FROM images WHERE id in ({}) RETURNING path",
             itertools::join(indexes, ",")
@@ -256,7 +256,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_delete_images(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
+    async fn test_batch_delete_image(
+        repository: impl std::future::Future<Output = ImagesSqliteDS>,
+    ) {
         let repository = repository.await;
         // Insert some test images
         let image = Image::new(7, "path/to/image7".to_string(), Utc::now());
@@ -265,7 +267,7 @@ mod tests {
         repository.insert_image(&image2).await.unwrap();
 
         // Delete image
-        let paths = repository.delete_images(vec![7, 8]).await.unwrap();
+        let paths = repository.batch_delete_image(vec![7, 8]).await.unwrap();
         println!("{:?}", paths);
 
         // Query images

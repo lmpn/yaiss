@@ -8,12 +8,12 @@ use crate::{
     error::YaissError,
     images::{
         data_storage::images_sqlite_ds::ImagesSqliteDS,
-        services::delete_images_service::DeleteImagesService,
+        services::batch_delete_image_service::DeleteImagesService,
     },
     state::State,
 };
 
-pub async fn delete_images(
+pub async fn batch_delete_image(
     axum::extract::State(state): axum::extract::State<State>,
     identifiers: axum::extract::Json<Vec<i64>>,
 ) -> Result<Response<Body>, YaissError> {
@@ -21,7 +21,7 @@ pub async fn delete_images(
     let storage = ImagesSqliteDS::new(state.pool());
     let service = DeleteImagesService::new(storage);
     let builder = Response::builder();
-    let builder = match service.delete_images(identifiers.0).await {
+    let builder = match service.batch_delete_image(identifiers.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
         Err(e) => builder
             .status(StatusCode::INTERNAL_SERVER_ERROR)
