@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 
 use crate::images::domain::image::Image;
 
@@ -73,6 +73,20 @@ impl ImagesDataStorage for ImagesSqliteDS {
         .await?;
 
         Ok(())
+    }
+    async fn delete_images(&self, indexes: Vec<Self::Index>) -> anyhow::Result<Vec<String>> {
+        let query = format!(
+            "DELETE FROM images WHERE id in ({}) RETURNING path",
+            itertools::join(indexes, ",")
+        );
+        let records = sqlx::query(&query)
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .map(|record| record.get::<String, &str>("path"))
+            .collect::<Vec<String>>();
+
+        Ok(records)
     }
 
     async fn insert_image(&self, record: &Image) -> anyhow::Result<()> {
@@ -238,5 +252,27 @@ mod tests {
 
         let queried_image = repository.query_image(4).await.unwrap();
         assert_eq!(queried_image, image);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn test_delete_images(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
+        let repository = repository.await;
+        // Insert some test images
+        let image = Image::new(7, "path/to/image7".to_string(), Utc::now());
+        let image2 = Image::new(8, "path/to/image8".to_string(), Utc::now());
+        repository.insert_image(&image).await.unwrap();
+        repository.insert_image(&image2).await.unwrap();
+
+        // Delete image
+        let paths = repository.delete_images(vec![7, 8]).await.unwrap();
+        println!("{:?}", paths);
+
+        // Query images
+        let image7_error = repository.query_image(7).await;
+        let image8_error = repository.query_image(8).await;
+        println!("{:?}", image7_error);
+        assert!(image7_error.is_err());
+        assert!(image8_error.is_err());
     }
 }
