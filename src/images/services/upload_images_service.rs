@@ -70,7 +70,8 @@ mod tests {
             type Index=i64;
             async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>>;
             async fn query_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<Image>;
-            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<()>;
+            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<String>;
+            async fn batch_delete_image(&self, index: Vec<<Self as ImagesDataStorage>::Index>) -> anyhow::Result<Vec<String>>;
             async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
         }
     }
@@ -85,9 +86,9 @@ mod tests {
         assert!(v.is_err());
     }
 
-    fn gen_img() -> Vec<u8> {
-        let imgx = 800;
-        let imgy = 800;
+    fn gen_img() -> (Vec<u8>, Vec<u8>) {
+        let imgx = 10;
+        let imgy = 10;
 
         // Create a new ImgBuf with width: imgx and height: imgy
         let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
@@ -99,11 +100,22 @@ mod tests {
             *pixel = image::Rgb([r, 0, b]);
         }
 
-        let mut bytes = vec![];
+        let mut png_bytes = vec![];
         imgbuf
-            .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)
+            .write_to(
+                &mut Cursor::new(&mut png_bytes),
+                image::ImageOutputFormat::Png,
+            )
             .expect("failed to generate image");
-        return bytes;
+        let mut qoi_bytes = vec![];
+        imgbuf
+            .write_to(
+                &mut Cursor::new(&mut qoi_bytes),
+                image::ImageOutputFormat::Qoi,
+            )
+            .expect("failed to generate image");
+        println!("{}", qoi_bytes.len());
+        return (png_bytes, qoi_bytes);
     }
 
     #[tokio::test]
@@ -113,15 +125,16 @@ mod tests {
             .returning(|_i| anyhow::Result::Ok(()));
         let path = env::current_dir().unwrap();
         let uis = UploadImagesService::new(mock, path.display().to_string());
-        let buffer = gen_img();
-        let v = uis.upload_image(buffer.clone()).await;
-        assert!(v.is_ok());
+        let (input, expected) = gen_img();
+        let result = uis.upload_image(input.clone()).await;
+        assert!(result.is_ok());
         let paths = std::fs::read_dir("./").unwrap();
         for path in paths {
             let p = path.unwrap().path();
-            if p.ends_with("qoi") {
-                let ri = image::io::Reader::open(p).unwrap().decode().unwrap();
-                assert_eq!(ri.as_bytes(), buffer)
+            if "qoi" == p.extension().unwrap_or_default() {
+                let buffer = std::fs::read(p.clone());
+                assert_eq!(expected, buffer.unwrap());
+                std::fs::remove_file(p).unwrap();
             }
         }
     }

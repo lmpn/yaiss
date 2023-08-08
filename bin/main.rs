@@ -2,7 +2,7 @@ use std::error::Error;
 
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event, Level};
-use yaiss::{configuration::Configuration, server::server::Server, state::State};
+use yaiss::{configuration::Configuration, server::Server, state::State};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
