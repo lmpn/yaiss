@@ -2,7 +2,7 @@ use crate::services::images::domain::image::Image;
 use async_trait::async_trait;
 use std::{error::Error, fmt::Display};
 #[async_trait]
-pub trait QueryImagesPort {
+pub trait BatchQueryImagesPort {
     async fn query_images(&self, count: i64, offset: i64) -> Result<Vec<Image>, QueryError>;
 }
 

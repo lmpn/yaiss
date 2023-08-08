@@ -3,8 +3,7 @@ use async_trait::async_trait;
 use std::{error::Error, fmt::Display};
 #[async_trait]
 pub trait QueryImagePort {
-    type Index;
-    async fn query_image(&self, index: Self::Index) -> Result<Image, QueryError>;
+    async fn query_image(&self, index: i64) -> Result<Image, QueryError>;
 }
 
 #[derive(Debug)]

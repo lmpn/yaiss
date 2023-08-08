@@ -18,7 +18,9 @@ use crate::{
 use self::delete_image_handler::DynDeleteImagesService;
 
 pub mod batch_delete_image_handler;
+pub mod batch_get_image_handler;
 pub mod delete_image_handler;
+pub mod get_image_handler;
 pub mod upload_images_handler;
 
 pub fn router(state: State) -> Router<(), Body> {

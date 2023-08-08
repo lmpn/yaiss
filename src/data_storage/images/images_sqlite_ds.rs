@@ -6,10 +6,10 @@ use crate::services::images::{
     domain::image::Image,
     ports::outgoing::{
         batch_delete_image_port::{BatchDeleteError, BatchDeleteImagePort},
+        batch_query_image_port::{self, BatchQueryImagesPort},
         delete_image_port::{DeleteImageError, DeleteImagePort},
         insert_image_port::{InsertImageError, InsertImagePort},
         query_image_port::{self, QueryImagePort},
-        query_images_port::{self, QueryImagesPort},
     },
 };
 
@@ -22,17 +22,17 @@ impl From<sqlx::Error> for query_image_port::QueryError {
     }
 }
 
-impl From<sqlx::Error> for query_images_port::QueryError {
+impl From<sqlx::Error> for batch_query_image_port::QueryError {
     fn from(value: sqlx::Error) -> Self {
         match value {
-            sqlx::Error::RowNotFound => query_images_port::QueryError::RecordNotFound,
-            _ => query_images_port::QueryError::InternalError,
+            sqlx::Error::RowNotFound => batch_query_image_port::QueryError::RecordNotFound,
+            _ => batch_query_image_port::QueryError::InternalError,
         }
     }
 }
 
 impl From<sqlx::Error> for BatchDeleteError {
-    fn from(value: sqlx::Error) -> Self {
+    fn from(_value: sqlx::Error) -> Self {
         BatchDeleteError::InternalError
     }
 }
@@ -58,8 +58,6 @@ pub struct ImagesSqliteDS {
 
 #[async_trait]
 impl QueryImagePort for ImagesSqliteDS {
-    type Index = i64;
-
     async fn query_image(&self, index: i64) -> Result<Image, query_image_port::QueryError> {
         let record = sqlx::query!(
             r#"
@@ -81,12 +79,12 @@ impl QueryImagePort for ImagesSqliteDS {
 }
 
 #[async_trait]
-impl QueryImagesPort for ImagesSqliteDS {
+impl BatchQueryImagesPort for ImagesSqliteDS {
     async fn query_images(
         &self,
         count: i64,
         offset: i64,
-    ) -> Result<Vec<Image>, query_images_port::QueryError> {
+    ) -> Result<Vec<Image>, batch_query_image_port::QueryError> {
         if count < 0 || offset < 0 {}
         let recs = sqlx::query!(
             r#"
@@ -266,16 +264,14 @@ mod tests {
         #[case] expected_image: Image,
     ) {
         let repository = repository.await;
-        let index: <ImagesSqliteDS as QueryImagePort>::Index = expected_image.id();
+        let index = expected_image.id();
         // Query image
         let image = repository.query_image(index).await.unwrap();
         assert_eq!(expected_image, image);
     }
 
     #[rstest]
-    #[should_panic(
-        expected = "called `Result::unwrap()` on an `Err` value: no rows returned by a query that expected to return at least one row"
-    )]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: RecordNotFound")]
     #[tokio::test]
     async fn test_delete_image(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
         let repository = repository.await;
