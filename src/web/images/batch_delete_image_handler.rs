@@ -40,7 +40,8 @@ mod tests {
     use std::sync::Arc;
 
     use async_trait::async_trait;
-    use axum::{body::Body, http::Request, routing::delete, Json, Router};
+    use axum::{routing::delete, Router};
+    use axum_test_helper::TestClient;
     use mockall::{mock, predicate};
     use reqwest::StatusCode;
     use serde_json::{json, Value};
@@ -51,7 +52,6 @@ mod tests {
         },
         web::images::batch_delete_image_handler,
     };
-    use tower::ServiceExt; // for `oneshot` and `ready`
 
     mock! {
         pub Service {}
@@ -61,15 +61,16 @@ mod tests {
         }
     }
 
-    pub fn app(service: MockService) -> Router<(), Body> {
+    pub fn app(service: MockService) -> TestClient {
         let batch_delete_image_service =
             Arc::new(service) as batch_delete_image_handler::DynBatchDeleteImageService;
-        Router::new()
+        let router = Router::new()
             .route(
                 "/",
                 delete(batch_delete_image_handler::batch_delete_image_handler),
             )
-            .with_state(batch_delete_image_service)
+            .with_state(batch_delete_image_service);
+        TestClient::new(router)
     }
 
     #[tokio::test]
@@ -80,20 +81,16 @@ mod tests {
             .with(predicate::eq(vec![1i64, 2, 3, 4]))
             .returning(move |_i| Ok(()));
         let app = app(mock_service);
+
         let response = app
-            .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri("/")
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(Json(json!(vec![1i64, 2, 3, 4])).to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+            .delete("/")
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .json(&json!(vec![1i64, 2, 3, 4]))
+            .send()
+            .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = response.bytes().await;
         assert!(body.is_empty());
     }
 
@@ -106,19 +103,13 @@ mod tests {
             .returning(move |_i| Err(BatchDeleteImageServiceError::InternalError));
         let app = app(mock_service);
         let response = app
-            .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri("/")
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(Json(json!(vec![1i64, 2, 3, 4])).to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
+            .delete("/")
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .json(&json!(vec![1i64, 2, 3, 4]))
+            .send()
+            .await;
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = response.bytes().await;
         let body: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(body, json!({"error": "Internal error"}));
     }
@@ -132,19 +123,14 @@ mod tests {
             .returning(move |_i| Err(BatchDeleteImageServiceError::TooManyImagesToDelete(50)));
         let app = app(mock_service);
         let response = app
-            .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri("/")
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(Json(json!(vec![0i64; 60])).to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
+            .delete("/")
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .json(&json!(vec![0i64; 60]))
+            .send()
+            .await;
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+
+        let body = response.bytes().await;
         let body: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             body,
