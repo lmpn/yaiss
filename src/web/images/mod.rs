@@ -37,7 +37,7 @@ pub fn router(state: State) -> Router<(), Body> {
         .with_state(upload_images_service)
         .route(
             "/batch_delete",
-            post(batch_delete_image_handler::batch_delete_image),
+            post(batch_delete_image_handler::batch_delete_image_handler),
         )
         .with_state(batch_delete_image_service)
         .route(

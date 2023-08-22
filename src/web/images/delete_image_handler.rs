@@ -22,23 +22,18 @@ pub async fn delete_image_handler(
     let builder = Response::builder();
     let builder = match service.delete_image(identifier.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
-        Err(DeleteImageServiceError::InternalError) => {
+        Err(e) => {
             let body = Json(json!({
-                "error": "internal error deleting image",
+                "error": e.to_string(),
             }))
             .to_string();
+            let code = if e == DeleteImageServiceError::ImageNotFound {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
             builder
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(body::Body::from(body))
-        }
-        Err(DeleteImageServiceError::ImageNotFound) => {
-            let body = Json(json!({
-                "error": "image not found",
-            }))
-            .to_string();
-            builder
-                .status(StatusCode::NOT_FOUND)
+                .status(code)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
                 .body(body::Body::from(body))
         }
@@ -129,7 +124,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let body: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(body, json!({"error": "internal error deleting image"}));
+        assert_eq!(body, json!({"error": "Internal error"}));
     }
 
     #[tokio::test]
@@ -153,6 +148,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let body: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(body, json!({ "error": "image not found", }));
+        assert_eq!(body, json!({ "error": "Image not found", }));
     }
 }
