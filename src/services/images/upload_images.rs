@@ -13,6 +13,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use super::ports::incoming::upload_images_service::UploadImagesServiceError;
+
 pub struct UploadImages<Storage>
 where
     Storage: InsertImagePort + Sync + Send,
@@ -26,20 +28,38 @@ impl<Storage> UploadImagesService for UploadImages<Storage>
 where
     Storage: InsertImagePort + Sync + Send,
 {
-    async fn upload_image(&self, buffer: Vec<u8>) -> anyhow::Result<()> {
-        let image = image::io::Reader::new(Cursor::new(buffer))
-            .with_guessed_format()?
-            .decode()?;
+    async fn upload_image(&self, buffer: Vec<u8>) -> Result<(), UploadImagesServiceError> {
+        let format = match image::io::Reader::new(Cursor::new(buffer)).with_guessed_format() {
+            Ok(format) => format,
+            Err(_) => return Err(UploadImagesServiceError::UnsupportedFormatError),
+        };
+        let image = match format.decode() {
+            Ok(image) => image,
+            Err(_) => return Err(UploadImagesServiceError::DecodingError),
+        };
         let mut bytes = vec![];
-        image.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)?;
+
+        // let image = format.unwrap().decode().unwrap();
+        // let mut bytes = vec![];
+        if image
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)
+            .is_err()
+        {
+            return Err(UploadImagesServiceError::InternalError);
+        }
         let path = self.generate_path();
-        tokio::fs::write(&path, bytes).await?;
+        if tokio::fs::write(&path, bytes).await.is_err() {
+            return Err(UploadImagesServiceError::InternalError);
+        };
         let image = Image::new(
             0,
             path.to_str().expect("Invalid path for image").to_string(),
             Utc::now(),
         );
-        self.storage.insert_image(&image).await?;
+        if self.storage.insert_image(&image).await.is_err() {
+            return Err(UploadImagesServiceError::InternalError);
+        };
+
         Ok(())
     }
 }

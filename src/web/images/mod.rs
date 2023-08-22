@@ -33,7 +33,7 @@ pub fn router(state: State) -> Router<(), Body> {
     let storage = ImagesSqliteDS::new(state.pool());
     let delete_image_service = Arc::new(DeleteImage::new(storage)) as DynDeleteImagesService;
     let images_routes = Router::new()
-        .route("/", post(upload_images_handler::upload_image))
+        .route("/", post(upload_images_handler::upload_images_handler))
         .with_state(upload_images_service)
         .route(
             "/batch_delete",

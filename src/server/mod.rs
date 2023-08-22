@@ -1,12 +1,12 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::routing::get;
 use axum::{
     http::{
         header::{ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, ORIGIN},
         Method,
     },
+    routing::get,
     Router,
 };
 use axum_server::Handle;
@@ -88,6 +88,7 @@ impl Server {
             .route("/", get(hello_world))
             .merge(web::images::router(state))
             .layer(cors)
+            .fallback(web::handler_404)
     }
 }
 
