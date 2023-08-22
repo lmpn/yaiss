@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     body::{self, Body},
     http::{Response, StatusCode},
@@ -6,20 +8,15 @@ use tracing::info;
 
 use crate::{
     error::YaissError,
-    images::{
-        data_storage::images_sqlite_ds::ImagesSqliteDS,
-        services::batch_delete_image_service::BatchDeleteImageService,
-    },
-    state::State,
+    services::images::ports::incoming::batch_delete_image_service::BatchDeleteImageService,
 };
-
+pub(crate) type DynBatchDeleteImageService = Arc<dyn BatchDeleteImageService + Send + Sync>;
 pub async fn batch_delete_image(
-    axum::extract::State(state): axum::extract::State<State>,
+    axum::extract::State(service): axum::extract::State<DynBatchDeleteImageService>,
     identifiers: axum::extract::Json<Vec<i64>>,
 ) -> Result<Response<Body>, YaissError> {
+    let service = service.clone();
     info!("{:?}", identifiers.0);
-    let storage = ImagesSqliteDS::new(state.pool());
-    let service = BatchDeleteImageService::new(storage);
     let builder = Response::builder();
     let builder = match service.batch_delete_image(identifiers.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),

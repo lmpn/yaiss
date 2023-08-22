@@ -2,18 +2,45 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 
-use crate::images::domain::image::Image;
-
-use super::images_data_storage::ImagesDataStorage;
+use crate::services::images::{
+    domain::image::Image,
+    ports::outgoing::{
+        batch_delete_image_port::BatchDeleteImagePort, delete_image_port::DeleteImagePort,
+        insert_image_port::InsertImagePort, query_image_port::QueryImagePort,
+        query_images_port::QueryImagesPort,
+    },
+};
 
 pub struct ImagesSqliteDS {
     pool: SqlitePool,
 }
 
 #[async_trait]
-impl ImagesDataStorage for ImagesSqliteDS {
+impl QueryImagePort for ImagesSqliteDS {
     type Index = i64;
 
+    async fn query_image(&self, index: i64) -> anyhow::Result<Image> {
+        let record = sqlx::query!(
+            r#"
+                SELECT id, path, updated_on FROM images 
+                    WHERE id = ?1
+            "#,
+            index
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let created_on = record
+            .updated_on
+            .parse::<DateTime<Utc>>()
+            .unwrap_or(Utc::now());
+        let image = Image::new(record.id, record.path, created_on);
+        Ok(image)
+    }
+}
+
+#[async_trait]
+impl QueryImagesPort for ImagesSqliteDS {
     async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>> {
         if count < 0 || offset < 0 {}
         let recs = sqlx::query!(
@@ -42,27 +69,10 @@ impl ImagesDataStorage for ImagesSqliteDS {
             .collect();
         Ok(images)
     }
-
-    async fn query_image(&self, index: Self::Index) -> anyhow::Result<Image> {
-        let record = sqlx::query!(
-            r#"
-                SELECT id, path, updated_on FROM images 
-                    WHERE id = ?1
-            "#,
-            index
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        let created_on = record
-            .updated_on
-            .parse::<DateTime<Utc>>()
-            .unwrap_or(Utc::now());
-        let image = Image::new(record.id, record.path, created_on);
-        Ok(image)
-    }
-
-    async fn delete_image(&self, index: Self::Index) -> anyhow::Result<String> {
+}
+#[async_trait]
+impl DeleteImagePort for ImagesSqliteDS {
+    async fn delete_image(&self, index: i64) -> anyhow::Result<String> {
         let record = match sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
             .fetch_all(&self.pool)
             .await
@@ -74,8 +84,10 @@ impl ImagesDataStorage for ImagesSqliteDS {
         };
         Ok(record.get(0).unwrap().path.clone())
     }
-
-    async fn batch_delete_image(&self, indexes: Vec<Self::Index>) -> anyhow::Result<Vec<String>> {
+}
+#[async_trait]
+impl BatchDeleteImagePort for ImagesSqliteDS {
+    async fn batch_delete_image(&self, indexes: Vec<i64>) -> anyhow::Result<Vec<String>> {
         let query = format!(
             "DELETE FROM images WHERE id in ({}) RETURNING path",
             itertools::join(indexes, ",")
@@ -89,7 +101,9 @@ impl ImagesDataStorage for ImagesSqliteDS {
 
         Ok(records)
     }
-
+}
+#[async_trait]
+impl InsertImagePort for ImagesSqliteDS {
     async fn insert_image(&self, record: &Image) -> anyhow::Result<()> {
         let id = record.id();
         let path = record.path();
@@ -213,7 +227,7 @@ mod tests {
         #[case] expected_image: Image,
     ) {
         let repository = repository.await;
-        let index: <ImagesSqliteDS as ImagesDataStorage>::Index = expected_image.id();
+        let index: <ImagesSqliteDS as QueryImagePort>::Index = expected_image.id();
         // Query image
         let image = repository.query_image(index).await.unwrap();
         assert_eq!(expected_image, image);

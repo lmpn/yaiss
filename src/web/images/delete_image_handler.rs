@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     body::{self, Body},
     http::{Response, StatusCode},
@@ -6,20 +8,17 @@ use axum::{
 use serde_json::json;
 
 use crate::{
-    error::YaissError,
-    images::{
-        data_storage::images_sqlite_ds::ImagesSqliteDS,
-        services::delete_image_service::{DeleteImageService, DeleteImageServiceError},
-    },
-    state::State,
+    error::YaissError, services::images::ports::incoming::delete_image_service::DeleteImageService,
+    services::images::ports::incoming::delete_image_service::DeleteImageServiceError,
 };
 
+pub(crate) type DynDeleteImagesService = Arc<dyn DeleteImageService + Send + Sync>;
+
 pub async fn delete_image_handler(
-    axum::extract::State(state): axum::extract::State<State>,
+    axum::extract::State(service): axum::extract::State<DynDeleteImagesService>,
     identifier: axum::extract::Path<i64>,
 ) -> Result<Response<Body>, YaissError> {
-    let storage = ImagesSqliteDS::new(state.pool());
-    let service = DeleteImageService::new(storage);
+    let service = service.clone();
     let builder = Response::builder();
     let builder = match service.delete_image(identifier.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
@@ -46,3 +45,6 @@ pub async fn delete_image_handler(
     };
     builder.map_err(|e| e.into())
 }
+
+#[cfg(test)]
+mod tests {}
