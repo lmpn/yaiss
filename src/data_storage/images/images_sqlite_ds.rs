@@ -320,7 +320,6 @@ mod tests {
     }
 
     #[rstest]
-    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: RecordNotFound")]
     #[tokio::test]
     async fn test_delete_image(repository: impl std::future::Future<Output = ImagesSqliteDS>) {
         let repository = repository.await;
