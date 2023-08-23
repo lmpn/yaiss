@@ -36,6 +36,7 @@ jobs:
         profile: minimal
         toolchain: nightly
         components: llvm-tools-preview  
+        override: true
     - uses: actions/checkout@v3
     - name: Prepare
       run: |
