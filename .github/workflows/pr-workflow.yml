@@ -37,7 +37,9 @@ jobs:
         cargo install sqlx-cli
         sh ./sql/create-db.sh
         cargo sqlx prepare --database-url $DATABASE_URL
-    - uses: docker://lpenz/ghaction-rust-coverage:0.12.0
+    - uses: Swatinem/fucov@v1
+      with:
+        args: --workspace --all-features --exclude services::images::ports 
     - uses: coverallsapp/github-action@v1.1.2
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
