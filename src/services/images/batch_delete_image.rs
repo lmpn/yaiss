@@ -70,7 +70,7 @@ mod tests {
             incoming::batch_delete_image_service::{
                 BatchDeleteImageService, BatchDeleteImageServiceError,
             },
-            outgoing::batch_delete_image_port::BatchDeleteImagePort,
+            outgoing::batch_delete_image_port::{BatchDeleteError, BatchDeleteImagePort},
         },
     };
 
@@ -78,7 +78,7 @@ mod tests {
         DS {}
         #[async_trait]
         impl BatchDeleteImagePort for DS {
-            async fn batch_delete_image(&self, index: Vec<i64>) -> anyhow::Result<Vec<String>>;
+            async fn batch_delete_image(&self, index: Vec<i64>) -> Result<Vec<String>, BatchDeleteError>;
         }
     }
 
@@ -119,7 +119,7 @@ mod tests {
     async fn test_batch_delete_image_ds_error() {
         let mut mock = MockDS::new();
         mock.expect_batch_delete_image()
-            .returning(move |_i| anyhow::bail!("error"));
+            .returning(move |_i| Err(BatchDeleteError::InternalError));
         let suu = BatchDeleteImage::new(mock);
         let result = suu.batch_delete_image(vec![1, 2]).await;
         assert!(result.is_err());

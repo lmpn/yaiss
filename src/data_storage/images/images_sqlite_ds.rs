@@ -5,11 +5,52 @@ use sqlx::{Row, SqlitePool};
 use crate::services::images::{
     domain::image::Image,
     ports::outgoing::{
-        batch_delete_image_port::BatchDeleteImagePort, delete_image_port::DeleteImagePort,
-        insert_image_port::InsertImagePort, query_image_port::QueryImagePort,
-        query_images_port::QueryImagesPort,
+        batch_delete_image_port::{BatchDeleteError, BatchDeleteImagePort},
+        delete_image_port::{DeleteImageError, DeleteImagePort},
+        insert_image_port::{InsertImageError, InsertImagePort},
+        query_image_port::{self, QueryImagePort},
+        query_images_port::{self, QueryImagesPort},
     },
 };
+
+impl From<sqlx::Error> for query_image_port::QueryError {
+    fn from(value: sqlx::Error) -> Self {
+        match value {
+            sqlx::Error::RowNotFound => query_image_port::QueryError::RecordNotFound,
+            _ => query_image_port::QueryError::InternalError,
+        }
+    }
+}
+
+impl From<sqlx::Error> for query_images_port::QueryError {
+    fn from(value: sqlx::Error) -> Self {
+        match value {
+            sqlx::Error::RowNotFound => query_images_port::QueryError::RecordNotFound,
+            _ => query_images_port::QueryError::InternalError,
+        }
+    }
+}
+
+impl From<sqlx::Error> for BatchDeleteError {
+    fn from(value: sqlx::Error) -> Self {
+        BatchDeleteError::InternalError
+    }
+}
+
+impl From<sqlx::Error> for DeleteImageError {
+    fn from(value: sqlx::Error) -> Self {
+        match value {
+            sqlx::Error::RowNotFound => DeleteImageError::RecordNotFound,
+            _ => DeleteImageError::InternalError,
+        }
+    }
+}
+
+impl From<sqlx::Error> for InsertImageError {
+    fn from(_value: sqlx::Error) -> Self {
+        InsertImageError::InternalError
+    }
+}
 
 pub struct ImagesSqliteDS {
     pool: SqlitePool,
@@ -19,7 +60,7 @@ pub struct ImagesSqliteDS {
 impl QueryImagePort for ImagesSqliteDS {
     type Index = i64;
 
-    async fn query_image(&self, index: i64) -> anyhow::Result<Image> {
+    async fn query_image(&self, index: i64) -> Result<Image, query_image_port::QueryError> {
         let record = sqlx::query!(
             r#"
                 SELECT id, path, updated_on FROM images 
@@ -41,7 +82,11 @@ impl QueryImagePort for ImagesSqliteDS {
 
 #[async_trait]
 impl QueryImagesPort for ImagesSqliteDS {
-    async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>> {
+    async fn query_images(
+        &self,
+        count: i64,
+        offset: i64,
+    ) -> Result<Vec<Image>, query_images_port::QueryError> {
         if count < 0 || offset < 0 {}
         let recs = sqlx::query!(
             r#"
@@ -72,22 +117,16 @@ impl QueryImagesPort for ImagesSqliteDS {
 }
 #[async_trait]
 impl DeleteImagePort for ImagesSqliteDS {
-    async fn delete_image(&self, index: i64) -> anyhow::Result<String> {
-        let record = match sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
+    async fn delete_image(&self, index: i64) -> Result<String, DeleteImageError> {
+        let record = sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
             .fetch_all(&self.pool)
-            .await
-        {
-            Ok(record) => record,
-            Err(_) => {
-                anyhow::bail!("record not found")
-            }
-        };
+            .await?;
         Ok(record.get(0).unwrap().path.clone())
     }
 }
 #[async_trait]
 impl BatchDeleteImagePort for ImagesSqliteDS {
-    async fn batch_delete_image(&self, indexes: Vec<i64>) -> anyhow::Result<Vec<String>> {
+    async fn batch_delete_image(&self, indexes: Vec<i64>) -> Result<Vec<String>, BatchDeleteError> {
         let query = format!(
             "DELETE FROM images WHERE id in ({}) RETURNING path",
             itertools::join(indexes, ",")
@@ -104,7 +143,7 @@ impl BatchDeleteImagePort for ImagesSqliteDS {
 }
 #[async_trait]
 impl InsertImagePort for ImagesSqliteDS {
-    async fn insert_image(&self, record: &Image) -> anyhow::Result<()> {
+    async fn insert_image(&self, record: &Image) -> Result<(), InsertImageError> {
         let id = record.id();
         let path = record.path();
         let updated_on = record.updated_on().to_string();

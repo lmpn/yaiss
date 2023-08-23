@@ -49,7 +49,7 @@ mod tests {
         delete_image::DeleteImage,
         ports::{
             incoming::delete_image_service::{DeleteImageService, DeleteImageServiceError},
-            outgoing::delete_image_port::DeleteImagePort,
+            outgoing::delete_image_port::{DeleteImageError, DeleteImagePort},
         },
     };
 
@@ -57,7 +57,7 @@ mod tests {
         DS {}
         #[async_trait]
         impl DeleteImagePort for DS {
-            async fn delete_image(&self, index: i64) -> anyhow::Result<String>;
+            async fn delete_image(&self, index: i64) -> Result<String, DeleteImageError>;
         }
     }
 
@@ -77,7 +77,7 @@ mod tests {
     async fn test_delete_image_ds_error() {
         let mut mock = MockDS::new();
         mock.expect_delete_image()
-            .returning(move |_i| anyhow::bail!("error"));
+            .returning(move |_i| Err(DeleteImageError::RecordNotFound));
         let suu = DeleteImage::new(mock);
         let result = suu.delete_image(1).await;
         assert!(result.is_err());
