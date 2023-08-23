@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
+use tracing::error;
 
 use crate::services::images::{
     domain::image::Image,
@@ -59,15 +60,26 @@ pub struct ImagesSqliteDS {
 #[async_trait]
 impl QueryImagePort for ImagesSqliteDS {
     async fn query_image(&self, index: i64) -> Result<Image, query_image_port::QueryError> {
-        let record = sqlx::query!(
+        let record = match sqlx::query!(
             r#"
-                SELECT id, path, updated_on FROM images 
-                    WHERE id = ?1
-            "#,
+                        SELECT id, path, updated_on FROM images 
+                            WHERE id = ?1
+                    "#,
             index
         )
-        .fetch_one(&self.pool)
-        .await?;
+        .fetch_one(&__self.pool)
+        .await
+        {
+            Ok(record) => record,
+            Err(e) => {
+                error!(
+                    "Error querying image: {}; message: {}",
+                    index,
+                    e.to_string()
+                );
+                return Err(e.into());
+            }
+        };
 
         let created_on = record
             .updated_on
@@ -77,7 +89,6 @@ impl QueryImagePort for ImagesSqliteDS {
         Ok(image)
     }
 }
-
 #[async_trait]
 impl BatchQueryImagesPort for ImagesSqliteDS {
     async fn query_images(
@@ -86,7 +97,7 @@ impl BatchQueryImagesPort for ImagesSqliteDS {
         offset: i64,
     ) -> Result<Vec<Image>, batch_query_image_port::QueryError> {
         if count < 0 || offset < 0 {}
-        let recs = sqlx::query!(
+        let recs = match sqlx::query!(
             r#"
                 SELECT id, path, updated_on FROM images 
                     ORDER BY updated_on
@@ -97,15 +108,26 @@ impl BatchQueryImagesPort for ImagesSqliteDS {
             offset
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        {
+            Ok(records) => records,
+            Err(e) => {
+                error!(
+                    "Error querying {} images with offset {}; message: {}",
+                    count,
+                    offset,
+                    e.to_string()
+                );
+                return Err(e.into());
+            }
+        };
 
         let images = recs
             .into_iter()
             .map(|record| {
                 let updated_on = record
                     .updated_on
-                    .unwrap()
-                    .parse::<DateTime<Utc>>()
+                    .map(|e| e.parse::<DateTime<Utc>>().unwrap_or(Utc::now()))
                     .unwrap_or(Utc::now());
                 Image::new(record.id.unwrap(), record.path.unwrap(), updated_on)
             })
@@ -116,10 +138,17 @@ impl BatchQueryImagesPort for ImagesSqliteDS {
 #[async_trait]
 impl DeleteImagePort for ImagesSqliteDS {
     async fn delete_image(&self, index: i64) -> Result<String, DeleteImageError> {
-        let record = sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(record.get(0).unwrap().path.clone())
+        let record = match sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
+            .fetch_one(&__self.pool)
+            .await
+        {
+            Ok(record) => record,
+            Err(e) => {
+                error!("Error deleting image {}; message: {}", index, e.to_string());
+                return Err(e.into());
+            }
+        };
+        Ok(record.path)
     }
 }
 #[async_trait]
@@ -127,11 +156,20 @@ impl BatchDeleteImagePort for ImagesSqliteDS {
     async fn batch_delete_image(&self, indexes: Vec<i64>) -> Result<Vec<String>, BatchDeleteError> {
         let query = format!(
             "DELETE FROM images WHERE id in ({}) RETURNING path",
-            itertools::join(indexes, ",")
+            itertools::join(&indexes, ",")
         );
-        let records = sqlx::query(&query)
-            .fetch_all(&self.pool)
-            .await?
+        let records = match sqlx::query(&query).fetch_all(&__self.pool).await {
+            Ok(records) => records,
+            Err(e) => {
+                error!(
+                    "Error deleting images {:?}; message: {}",
+                    indexes,
+                    e.to_string()
+                );
+                return Err(e.into());
+            }
+        };
+        let records = records
             .into_iter()
             .map(|record| record.get::<String, &str>("path"))
             .collect::<Vec<String>>();
@@ -145,7 +183,7 @@ impl InsertImagePort for ImagesSqliteDS {
         let id = record.id();
         let path = record.path();
         let updated_on = record.updated_on().to_string();
-        if id == 0 {
+        let result = if id == 0 {
             sqlx::query!(
                 r#"
                 INSERT INTO images (path, updated_on) VALUES (?1, ?2)
@@ -154,7 +192,7 @@ impl InsertImagePort for ImagesSqliteDS {
                 updated_on
             )
             .execute(&self.pool)
-            .await?;
+            .await
         } else {
             sqlx::query!(
                 r#"
@@ -165,9 +203,20 @@ impl InsertImagePort for ImagesSqliteDS {
                 updated_on
             )
             .execute(&self.pool)
-            .await?;
-        }
+            .await
+        };
 
+        match result {
+            Ok(_) => (),
+            Err(e) => {
+                error!(
+                    "Error inserting image {:?}; message: {}",
+                    record,
+                    e.to_string()
+                );
+                return Err(e.into());
+            }
+        }
         Ok(())
     }
 }

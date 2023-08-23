@@ -22,18 +22,3 @@ impl Display for QueryError {
 }
 
 impl Error for QueryError {}
-
-#[derive(Debug)]
-pub enum DeleteError {
-    RecordNotFound,
-    InternalError,
-}
-
-impl Display for DeleteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RecordNotFound => write!(f, "Record not found"),
-            Self::InternalError => write!(f, "Internal error"),
-        }
-    }
-}
