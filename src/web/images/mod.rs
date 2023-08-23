@@ -23,6 +23,7 @@ use self::{
 pub mod batch_delete_image_handler;
 pub mod batch_query_image_handler;
 pub mod delete_image_handler;
+pub mod get_image_content_handler;
 pub mod query_image_handler;
 pub mod upload_images_handler;
 
@@ -53,6 +54,11 @@ pub fn router(state: State) -> Router<(), Body> {
         .route(
             "/:identifier",
             get(query_image_handler::query_image_handler),
+        )
+        .with_state(query_image_service.clone())
+        .route(
+            "/content/:identifier",
+            get(get_image_content_handler::get_image_content_handler),
         )
         .with_state(query_image_service)
         .route(
