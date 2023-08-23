@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use tracing::error;
 
 use super::ports::{
     incoming::delete_image_service::{DeleteImageService, DeleteImageServiceError},
@@ -22,7 +23,8 @@ where
             Ok(path) => path,
             Err(_) => return Err(DeleteImageServiceError::ImageNotFound),
         };
-        if std::fs::remove_file(path).is_err() {
+        if std::fs::remove_file(&path).is_err() {
+            error!("Error removing file {}", path);
             return Err(DeleteImageServiceError::InternalError);
         }
         Ok(())

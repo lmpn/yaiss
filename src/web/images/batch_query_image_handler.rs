@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     error::YaissError,
@@ -75,6 +76,8 @@ pub async fn batch_query_image_handler(
             builder.status(StatusCode::OK).body(body::Body::from(body))
         }
         Err(e) => {
+            let message = e.to_string();
+            error!("{}", message);
             let status = match e {
                 BatchQueryImageServiceError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
                 BatchQueryImageServiceError::TooManyImagesRequested => StatusCode::BAD_REQUEST,
@@ -83,7 +86,7 @@ pub async fn batch_query_image_handler(
             };
             builder.status(status).body(body::Body::from(
                 Json(json!({
-                    "error": e.to_string(),
+                    "error": message,
                 }))
                 .to_string(),
             ))

@@ -31,10 +31,8 @@ pub async fn get_image_content_handler(
     let builder = Response::builder();
     let builder = match service.query_image(identifier.0).await {
         Err(e) => {
-            let body = Json(json!({
-                "error": e.to_string(),
-            }))
-            .to_string();
+            let message = e.to_string();
+            tracing::error!("{}", message);
             let code = if e == QueryImageServiceError::ImageNotFound {
                 StatusCode::NOT_FOUND
             } else {
@@ -43,7 +41,12 @@ pub async fn get_image_content_handler(
             builder
                 .status(code)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(body::boxed(body))
+                .body(body::boxed(
+                    Json(json!({
+                        "error": message,
+                    }))
+                    .to_string(),
+                ))
         }
         Ok(image) => {
             let file = tokio::fs::File::open(image.path()).await?;

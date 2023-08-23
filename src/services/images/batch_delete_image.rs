@@ -1,9 +1,12 @@
 use async_trait::async_trait;
+use tracing::error;
 
 use super::ports::{
     incoming::batch_delete_image_service::{BatchDeleteImageService, BatchDeleteImageServiceError},
     outgoing::batch_delete_image_port::BatchDeleteImagePort,
 };
+
+const MAX_IMAGES: usize = 50;
 
 pub struct BatchDeleteImage<Storage>
 where
@@ -23,7 +26,11 @@ where
     ) -> Result<(), BatchDeleteImageServiceError> {
         let len = indexes.len();
         let max = 50;
-        if len > max {
+        if len > MAX_IMAGES {
+            error!(
+                "Error too many images for deletion, requested amount {}",
+                len
+            );
             Err(BatchDeleteImageServiceError::TooManyImagesToDelete(
                 max as u64,
             ))
@@ -35,8 +42,9 @@ where
 
             let mut err: Option<BatchDeleteImageServiceError> = None;
             for path in paths {
-                let result = std::fs::remove_file(path);
+                let result = std::fs::remove_file(&path);
                 if result.is_err() {
+                    error!("Error removing file {}", path);
                     err = Some(BatchDeleteImageServiceError::InternalError);
                 }
             }

@@ -29,7 +29,16 @@ pub async fn upload_images_handler(
         tokio::io::copy(&mut reader, &mut buffer).await?;
         let service = service.clone();
         let handle = tokio::task::spawn(async move { service.upload_image(buffer).await });
-        handle.await??;
+        handle
+            .await
+            .map_err(|e| {
+                tracing::error!("{}", e.to_string());
+                e
+            })
+            .map_err(|e| {
+                tracing::error!("{}", e.to_string());
+                e
+            })??
     }
     Response::builder()
         .status(StatusCode::CREATED)

@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::Serialize;
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     error::YaissError,
@@ -45,10 +46,8 @@ pub async fn query_image_handler(
             builder.status(StatusCode::OK).body(body::Body::from(body))
         }
         Err(e) => {
-            let body = Json(json!({
-                "error": e.to_string(),
-            }))
-            .to_string();
+            let message = e.to_string();
+            error!("{}", message);
             let code = if e == QueryImageServiceError::ImageNotFound {
                 StatusCode::NOT_FOUND
             } else {
@@ -57,7 +56,12 @@ pub async fn query_image_handler(
             builder
                 .status(code)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(body::Body::from(body))
+                .body(body::Body::from(
+                    Json(json!({
+                        "error": message,
+                    }))
+                    .to_string(),
+                ))
         }
     };
     builder.map_err(|e| e.into())

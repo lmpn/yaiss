@@ -39,8 +39,6 @@ where
         };
         let mut bytes = vec![];
 
-        // let image = format.unwrap().decode().unwrap();
-        // let mut bytes = vec![];
         if image
             .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)
             .is_err()

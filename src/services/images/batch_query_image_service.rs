@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use tracing::error;
 
 use super::{
     domain::image::Image,
@@ -43,6 +44,7 @@ where
         }
 
         if count as usize > MAX_IMAGES {
+            error!("Error too many images request amount {}", count);
             return Err(BatchQueryImageServiceError::TooManyImagesRequested);
         }
         self.storage

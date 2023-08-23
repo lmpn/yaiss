@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     error::YaissError,
@@ -21,10 +22,9 @@ pub async fn batch_delete_image_handler(
     let builder = match service.batch_delete_image(identifiers.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
         Err(e) => {
-            let body = Json(json!({
-                "error": e.to_string(),
-            }))
-            .to_string();
+            let message = e.to_string();
+            error!("{}", message);
+            let body = Json(json!({ "error": message })).to_string();
             builder
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
