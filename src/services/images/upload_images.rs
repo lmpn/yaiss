@@ -1,4 +1,11 @@
-use crate::images::{data_storage::images_data_storage::ImagesDataStorage, domain::image::Image};
+use crate::services::images::{
+    domain::image::Image,
+    ports::{
+        incoming::upload_images_service::UploadImagesService,
+        outgoing::insert_image_port::InsertImagePort,
+    },
+};
+use async_trait::async_trait;
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
@@ -6,17 +13,60 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub struct UploadImagesService<Storage>
+use super::ports::incoming::upload_images_service::UploadImagesServiceError;
+
+pub struct UploadImages<Storage>
 where
-    Storage: ImagesDataStorage + Sync + Send,
+    Storage: InsertImagePort + Sync + Send,
 {
     storage: Storage,
     base_path: String,
 }
 
-impl<Storage> UploadImagesService<Storage>
+#[async_trait]
+impl<Storage> UploadImagesService for UploadImages<Storage>
 where
-    Storage: ImagesDataStorage + Sync + Send,
+    Storage: InsertImagePort + Sync + Send,
+{
+    async fn upload_image(&self, buffer: Vec<u8>) -> Result<(), UploadImagesServiceError> {
+        let format = match image::io::Reader::new(Cursor::new(buffer)).with_guessed_format() {
+            Ok(format) => format,
+            Err(_) => return Err(UploadImagesServiceError::UnsupportedFormatError),
+        };
+        let image = match format.decode() {
+            Ok(image) => image,
+            Err(_) => return Err(UploadImagesServiceError::DecodingError),
+        };
+        let mut bytes = vec![];
+
+        // let image = format.unwrap().decode().unwrap();
+        // let mut bytes = vec![];
+        if image
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)
+            .is_err()
+        {
+            return Err(UploadImagesServiceError::InternalError);
+        }
+        let path = self.generate_path();
+        if tokio::fs::write(&path, bytes).await.is_err() {
+            return Err(UploadImagesServiceError::InternalError);
+        };
+        let image = Image::new(
+            0,
+            path.to_str().expect("Invalid path for image").to_string(),
+            Utc::now(),
+        );
+        if self.storage.insert_image(&image).await.is_err() {
+            return Err(UploadImagesServiceError::InternalError);
+        };
+
+        Ok(())
+    }
+}
+
+impl<Storage> UploadImages<Storage>
+where
+    Storage: InsertImagePort + Sync + Send,
 {
     pub fn new(storage: Storage, base_path: String) -> Self {
         Self { storage, base_path }
@@ -32,23 +82,6 @@ where
             .join(image_filename)
             .with_extension("qoi")
     }
-
-    pub async fn upload_image(&self, buffer: Vec<u8>) -> anyhow::Result<()> {
-        let image = image::io::Reader::new(Cursor::new(buffer))
-            .with_guessed_format()?
-            .decode()?;
-        let mut bytes = vec![];
-        image.write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)?;
-        let path = self.generate_path();
-        tokio::fs::write(&path, bytes).await?;
-        let image = Image::new(
-            0,
-            path.to_str().expect("Invalid path for image").to_string(),
-            Utc::now(),
-        );
-        self.storage.insert_image(&image).await?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -58,20 +91,19 @@ mod tests {
     use async_trait::async_trait;
     use mockall::mock;
 
-    use crate::images::{
-        data_storage::images_data_storage::ImagesDataStorage, domain::image::Image,
-        services::upload_images_service::UploadImagesService,
+    use crate::services::images::{
+        domain::image::Image,
+        ports::{
+            incoming::upload_images_service::UploadImagesService,
+            outgoing::insert_image_port::InsertImagePort,
+        },
+        upload_images::UploadImages,
     };
 
     mock! {
         DS {}
         #[async_trait]
-        impl ImagesDataStorage for DS {
-            type Index=i64;
-            async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>>;
-            async fn query_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<Image>;
-            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<String>;
-            async fn batch_delete_image(&self, index: Vec<<Self as ImagesDataStorage>::Index>) -> anyhow::Result<Vec<String>>;
+        impl InsertImagePort for DS {
             async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
         }
     }
@@ -81,14 +113,14 @@ mod tests {
         let mut mock = MockDS::new();
         mock.expect_insert_image()
             .returning(|_i| anyhow::Result::Ok(()));
-        let uis = UploadImagesService::new(mock, "data".to_string());
+        let uis = UploadImages::new(mock, "data".to_string());
         let v = uis.upload_image(vec![]).await;
         assert!(v.is_err());
     }
 
     fn gen_img() -> (Vec<u8>, Vec<u8>) {
-        let imgx = 10;
-        let imgy = 10;
+        let imgx = 5;
+        let imgy = 2;
 
         // Create a new ImgBuf with width: imgx and height: imgy
         let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
@@ -124,7 +156,7 @@ mod tests {
         mock.expect_insert_image()
             .returning(|_i| anyhow::Result::Ok(()));
         let path = env::current_dir().unwrap();
-        let uis = UploadImagesService::new(mock, path.display().to_string());
+        let uis = UploadImages::new(mock, path.display().to_string());
         let (input, expected) = gen_img();
         let result = uis.upload_image(input.clone()).await;
         assert!(result.is_ok());

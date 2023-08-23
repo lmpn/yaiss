@@ -1,41 +1,25 @@
-use std::{error::Error, fmt::Display};
+use async_trait::async_trait;
 
-use crate::images::data_storage::images_data_storage::{self, ImagesDataStorage};
-#[derive(Debug, PartialEq)]
-pub enum BatchDeleteImageServiceError {
-    TooManyImagesToDelete(u64),
-    InternalError,
-}
+use super::ports::{
+    incoming::batch_delete_image_service::{BatchDeleteImageService, BatchDeleteImageServiceError},
+    outgoing::batch_delete_image_port::BatchDeleteImagePort,
+};
 
-impl Display for BatchDeleteImageServiceError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BatchDeleteImageServiceError::TooManyImagesToDelete(max) => {
-                f.write_str(format!("Too many images to delete. Max: {}", max).as_str())
-            }
-            BatchDeleteImageServiceError::InternalError => f.write_str("Internal error"),
-        }
-    }
-}
-impl Error for BatchDeleteImageServiceError {}
-pub struct BatchDeleteImageService<Storage>
+pub struct BatchDeleteImage<Storage>
 where
-    Storage: ImagesDataStorage + Send + Sync,
+    Storage: BatchDeleteImagePort + Send + Sync,
 {
     storage: Storage,
 }
 
-impl<Storage> BatchDeleteImageService<Storage>
+#[async_trait]
+impl<Storage> BatchDeleteImageService for BatchDeleteImage<Storage>
 where
-    Storage: ImagesDataStorage + Send + Sync,
+    Storage: BatchDeleteImagePort + Send + Sync,
 {
-    pub fn new(storage: Storage) -> Self {
-        Self { storage }
-    }
-
-    pub async fn batch_delete_image(
+    async fn batch_delete_image(
         &self,
-        indexes: Vec<<Storage as images_data_storage::ImagesDataStorage>::Index>,
+        indexes: Vec<i64>,
     ) -> Result<(), BatchDeleteImageServiceError> {
         let len = indexes.len();
         let max = 50;
@@ -56,11 +40,20 @@ where
                     err = Some(BatchDeleteImageServiceError::InternalError);
                 }
             }
-            if err.is_some() {
-                return Err(err.unwrap());
+            if let Some(error) = err {
+                return Err(error);
             }
             Ok(())
         }
+    }
+}
+
+impl<Storage> BatchDeleteImage<Storage>
+where
+    Storage: BatchDeleteImagePort + Send + Sync,
+{
+    pub fn new(storage: Storage) -> Self {
+        Self { storage }
     }
 }
 
@@ -71,24 +64,21 @@ mod tests {
     use async_trait::async_trait;
     use mockall::mock;
 
-    use crate::images::{
-        data_storage::images_data_storage::ImagesDataStorage,
-        domain::image::Image,
-        services::batch_delete_image_service::{
-            BatchDeleteImageService, BatchDeleteImageServiceError,
+    use crate::services::images::{
+        batch_delete_image::BatchDeleteImage,
+        ports::{
+            incoming::batch_delete_image_service::{
+                BatchDeleteImageService, BatchDeleteImageServiceError,
+            },
+            outgoing::batch_delete_image_port::BatchDeleteImagePort,
         },
     };
 
     mock! {
         DS {}
         #[async_trait]
-        impl ImagesDataStorage for DS {
-            type Index=i64;
-            async fn query_images(&self, count: i64, offset: i64) -> anyhow::Result<Vec<Image>>;
-            async fn query_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<Image>;
-            async fn delete_image(&self, index: <Self as ImagesDataStorage>::Index) -> anyhow::Result<String>;
-            async fn batch_delete_image(&self, index: Vec<<Self as ImagesDataStorage>::Index>) -> anyhow::Result<Vec<String>>;
-            async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
+        impl BatchDeleteImagePort for DS {
+            async fn batch_delete_image(&self, index: Vec<i64>) -> anyhow::Result<Vec<String>>;
         }
     }
 
@@ -104,7 +94,7 @@ mod tests {
                 path.join("2").to_str().unwrap().to_string(),
             ])
         });
-        let suu = BatchDeleteImageService::new(mock);
+        let suu = BatchDeleteImage::new(mock);
         let result = suu.batch_delete_image(vec![1, 2]).await;
         assert!(result.is_ok());
     }
@@ -119,7 +109,7 @@ mod tests {
                 path.join("2").to_str().unwrap().to_string(),
             ])
         });
-        let suu = BatchDeleteImageService::new(mock);
+        let suu = BatchDeleteImage::new(mock);
         let result = suu.batch_delete_image(vec![1, 2]).await;
         assert!(result.is_err());
         assert_eq!(result, Err(BatchDeleteImageServiceError::InternalError));
@@ -130,7 +120,7 @@ mod tests {
         let mut mock = MockDS::new();
         mock.expect_batch_delete_image()
             .returning(move |_i| anyhow::bail!("error"));
-        let suu = BatchDeleteImageService::new(mock);
+        let suu = BatchDeleteImage::new(mock);
         let result = suu.batch_delete_image(vec![1, 2]).await;
         assert!(result.is_err());
         assert_eq!(result, Err(BatchDeleteImageServiceError::InternalError));
@@ -140,7 +130,7 @@ mod tests {
     async fn test_batch_delete_image_more_than_fifty_error() {
         let mock = MockDS::new();
         let indexes = vec![0; 51];
-        let suu = BatchDeleteImageService::new(mock);
+        let suu = BatchDeleteImage::new(mock);
         let result = suu.batch_delete_image(indexes).await;
         assert!(result.is_err());
         assert_eq!(

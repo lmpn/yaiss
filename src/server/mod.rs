@@ -1,12 +1,12 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::routing::get;
 use axum::{
     http::{
         header::{ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, ORIGIN},
         Method,
     },
+    routing::get,
     Router,
 };
 use axum_server::Handle;
@@ -14,8 +14,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::{event, Level};
 
 use crate::configuration::Configuration;
-use crate::images;
 use crate::state::State;
+use crate::web;
 
 pub struct Server {
     handle: Option<Handle>,
@@ -86,9 +86,9 @@ impl Server {
             .allow_headers([AUTHORIZATION, ORIGIN, ACCEPT, ACCESS_CONTROL_ALLOW_ORIGIN]);
         Router::new()
             .route("/", get(hello_world))
-            .merge(images::web::router())
-            .with_state(state)
+            .merge(web::images::router(state))
             .layer(cors)
+            .fallback(web::handler_404)
     }
 }
 

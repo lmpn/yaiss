@@ -28,8 +28,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: sqlite:sql/images.db
-      INI_CONFIGURATION: configuration.ini
+      DATABASE_URL: sqlite:sql/test.db
+      INI_CONFIGURATION: resources/dev.configuration.ini
     steps:
     - uses: actions/checkout@v3
     - name: Prepare
