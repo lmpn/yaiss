@@ -67,7 +67,7 @@ impl QueryImagePort for ImagesSqliteDS {
                     "#,
             index
         )
-        .fetch_one(&__self.pool)
+        .fetch_one(&self.pool)
         .await
         {
             Ok(record) => record,
@@ -139,7 +139,7 @@ impl BatchQueryImagesPort for ImagesSqliteDS {
 impl DeleteImagePort for ImagesSqliteDS {
     async fn delete_image(&self, index: i64) -> Result<String, DeleteImageError> {
         let record = match sqlx::query!(r#"DELETE FROM images WHERE id = ?1 RETURNING path"#, index)
-            .fetch_one(&__self.pool)
+            .fetch_one(&self.pool)
             .await
         {
             Ok(record) => record,
@@ -236,7 +236,7 @@ mod tests {
     #[fixture]
     async fn repository() -> ImagesSqliteDS {
         let pool = SqlitePool::connect(
-            &std::env::var("DATABASE_URL").expect("env variable DATABASE_URL not set"),
+            &std::env::var("DATABASE_URL").unwrap_or("sql/test.db".to_string()),
         )
         .await
         .unwrap();
@@ -331,10 +331,6 @@ mod tests {
         // Delete image
         let path = repository.delete_image(5).await.unwrap();
         assert_eq!(path, "path/to/image5".to_string());
-
-        // Query images
-        let img = repository.query_image(5).await.unwrap();
-        println!("{:?}", img);
     }
 
     #[rstest]
