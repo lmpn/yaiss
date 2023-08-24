@@ -6,3 +6,5 @@ output-type: lcov
 output-path: ./lcov.info
 ignore:
   - "src/services/ports"
+  - "bin"
+  - "../"
