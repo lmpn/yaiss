@@ -7,4 +7,4 @@ output-path: ./lcov.info
 ignore:
   - "src/services/ports"
   - "bin"
-  - "../"
+  - /../../../.cargo
