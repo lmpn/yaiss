@@ -12,10 +12,11 @@ env:
 jobs:
   clippy_check:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: sqlite:sql/images.db
     steps:
       - uses: actions/checkout@v3
+      - name: Install sqlx-cli
+        run: |
+          cargo install sqlx-cli
       - name: Run Clippy
         run: |
           make clippy
@@ -28,9 +29,13 @@ jobs:
       with:
         toolchain: nightly
         override: true
-    - name: Coverage 
+    - name: Install sqlx-cli
       run: |
-        make backend-coverage
+        cargo install sqlx-cli
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Run Coverage
+      run: make backend-coverage
     - uses: coverallsapp/github-action@v1.1.2
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}

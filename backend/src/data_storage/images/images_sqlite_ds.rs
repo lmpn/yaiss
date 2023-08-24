@@ -250,7 +250,7 @@ mod tests {
         let _ = storage.insert_image(&image1).await;
         let _ = storage.insert_image(&image2).await;
         let _ = storage.insert_image(&image3).await;
-        return storage;
+        storage
     }
 
     fn image1() -> Image {

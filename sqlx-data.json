@@ -1,0 +1,101 @@
+{
+  "db": "SQLite",
+  "1eca503cf8025cdd79e65dcd7fd8225b1c8e2470447a9868ace1cced2dbfcc48": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "path",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "updated_on",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        true,
+        true,
+        true
+      ],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n                SELECT id, path, updated_on FROM images \n                    ORDER BY updated_on\n                    LIMIT ?1\n                    OFFSET ?2\n            "
+  },
+  "714b42a24c7a3186ea2f5d420bac2051e7ee308fb54ba3f1441db4c9fc9c3442": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "\n                INSERT INTO images (path, updated_on) VALUES (?1, ?2)\n                "
+  },
+  "d58f0c42ada21c510ae42fe3f1c2513fb699d0659b95573f6da777021d5d784d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "path",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM images WHERE id = ?1 RETURNING path"
+  },
+  "d6c4bd98ff932640396bbbc389e62d7d381660d4020541cfca5d398d95052e3e": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 3
+      }
+    },
+    "query": "\n                INSERT INTO images (id, path, updated_on) VALUES (?1, ?2, ?3)\n                "
+  },
+  "ec85e59d168838931eff2aa00c69fa7e7bc4e0ee68c775f29ba78e1ed82415ad": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "path",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "updated_on",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n                        SELECT id, path, updated_on FROM images \n                            WHERE id = ?1\n                    "
+  }
+}
