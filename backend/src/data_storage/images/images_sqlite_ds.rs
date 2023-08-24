@@ -187,7 +187,7 @@ impl InsertImagePort for ImagesSqliteDS {
             sqlx::query!(
                 r#"
                 INSERT INTO images (path, updated_on) VALUES (?1, ?2)
-            "#,
+                "#,
                 path,
                 updated_on
             )
@@ -197,7 +197,7 @@ impl InsertImagePort for ImagesSqliteDS {
             sqlx::query!(
                 r#"
                 INSERT INTO images (id, path, updated_on) VALUES (?1, ?2, ?3)
-            "#,
+                "#,
                 id,
                 path,
                 updated_on
@@ -235,11 +235,14 @@ mod tests {
 
     #[fixture]
     async fn repository() -> ImagesSqliteDS {
-        let pool = SqlitePool::connect(
-            &std::env::var("DATABASE_URL").unwrap_or("sql/test.db".to_string()),
-        )
-        .await
-        .unwrap();
+        println!(
+            "{} {:?}",
+            std::env::var("DB_URL").unwrap(),
+            std::env::current_dir().unwrap()
+        );
+        let pool = SqlitePool::connect(&std::env::var("DB_URL").unwrap())
+            .await
+            .unwrap();
         let storage = ImagesSqliteDS::new(pool);
         let image1 = image1();
         let image2 = image2();

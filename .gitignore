@@ -13,8 +13,9 @@ Cargo.lock
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
-sql/*.db*
+backend/sql/*.db*
 sqlx-data.json
 data
 .DS_Store
 *.qoi
+lcov.info
