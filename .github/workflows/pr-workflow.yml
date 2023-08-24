@@ -32,12 +32,19 @@ jobs:
       INI_CONFIGURATION: resources/dev.configuration.ini
     steps:
     - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
     - name: Prepare
       run: |
         cargo install sqlx-cli
         sh ./sql/create-db.sh
         cargo sqlx prepare --database-url $DATABASE_URL
-    - uses: docker://lpenz/ghaction-rust-coverage:0.12.0
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Generate code coverage
+      run: cargo llvm-cov --all-features --workspace --lcov --ignore-filename-regex "bin|services/images/ports/|web/mod.rs"  --output-path lcov.info
     - uses: coverallsapp/github-action@v1.1.2
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}

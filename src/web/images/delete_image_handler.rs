@@ -6,6 +6,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use tracing::error;
 
 use crate::{
     error::YaissError, services::images::ports::incoming::delete_image_service::DeleteImageService,
@@ -23,8 +24,10 @@ pub async fn delete_image_handler(
     let builder = match service.delete_image(identifier.0).await {
         Ok(()) => builder.status(StatusCode::OK).body(Body::empty()),
         Err(e) => {
+            let message = e.to_string();
+            error!("{}", message);
             let body = Json(json!({
-                "error": e.to_string(),
+                "error": message,
             }))
             .to_string();
             let code = if e == DeleteImageServiceError::ImageNotFound {
@@ -122,10 +125,9 @@ mod tests {
             .send()
             .await;
 
-        // assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let body = response.bytes().await;
         let body: Value = serde_json::from_slice(&body).unwrap();
-        // assert_eq!(body, json!({"error": "Image not found", }));
-        println!("{:?}", body);
+        assert_eq!(body, json!({"error": "Image not found", }));
     }
 }

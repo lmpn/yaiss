@@ -39,8 +39,6 @@ where
         };
         let mut bytes = vec![];
 
-        // let image = format.unwrap().decode().unwrap();
-        // let mut bytes = vec![];
         if image
             .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Qoi)
             .is_err()
@@ -95,7 +93,7 @@ mod tests {
         domain::image::Image,
         ports::{
             incoming::upload_images_service::UploadImagesService,
-            outgoing::insert_image_port::InsertImagePort,
+            outgoing::insert_image_port::{InsertImageError, InsertImagePort},
         },
         upload_images::UploadImages,
     };
@@ -104,7 +102,7 @@ mod tests {
         DS {}
         #[async_trait]
         impl InsertImagePort for DS {
-            async fn insert_image(&self, record: &Image) -> anyhow::Result<()>;
+            async fn insert_image(&self, record: &Image) -> Result<(), InsertImageError>;
         }
     }
 
