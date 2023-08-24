@@ -17,7 +17,12 @@ impl State {
             tokio::runtime::Handle::current().block_on(async {
                 let inner_pool = SqlitePool::connect(configuration.database_url())
                     .await
-                    .expect("Failed to create SQLite Pool");
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "Failed to create SQLite Pool: {}",
+                            configuration.database_url()
+                        )
+                    });
                 let migrator =
                     sqlx::migrate::Migrator::new(Path::new(configuration.migrations_path()))
                         .await

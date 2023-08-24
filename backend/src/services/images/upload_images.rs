@@ -145,7 +145,7 @@ mod tests {
             )
             .expect("failed to generate image");
         println!("{}", qoi_bytes.len());
-        return (png_bytes, qoi_bytes);
+        (png_bytes, qoi_bytes)
     }
 
     #[tokio::test]

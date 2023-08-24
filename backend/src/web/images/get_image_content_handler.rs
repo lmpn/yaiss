@@ -109,12 +109,12 @@ mod tests {
         mock_service
             .expect_query_image()
             .with(predicate::eq(1))
-            .returning(move |_i| Ok(Image::new(1, "README.md".to_string(), now)));
+            .returning(move |_i| Ok(Image::new(1, "Cargo.toml".to_string(), now)));
         let app = app(mock_service);
         let response = app.get("/1").send().await;
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.bytes().await;
-        let e = tokio::fs::read("README.md".to_string()).await.unwrap();
+        let e = tokio::fs::read("Cargo.toml".to_string()).await.unwrap();
         assert_eq!(body.to_vec(), e);
     }
 
